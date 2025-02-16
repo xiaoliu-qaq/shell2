@@ -1,0 +1,64 @@
+# Test that does nothing but get the prompt from the shell and exit
+< 
+$ SHELL
+PROMPT exit
+
+# Test that runs a simple command with the full path and no arguments
+< 
+/bin/echo
+$ SHELL
+PROMPT 
+PROMPT exit
+
+# Test that runs a simple command with one argument test
+< 
+/bin/echo hello
+$ SHELL
+PROMPT hello
+PROMPT exit
+
+# Test that runs a simple command with multiple arguments 
+< 
+/bin/echo hello world I am here!
+$ SHELL
+PROMPT hello world I am here!
+PROMPT exit
+
+# Test that runs a simple command with multiple arguments 
+< 
+/bin/echo hello world I am here!
+$ SHELL
+PROMPT hello world I am here!
+PROMPT exit
+
+# 6. Test that runs a command with a single quoted argument
+< 
+/usr/bin/awk 'BEGIN { print ARGC }'
+$ SHELL
+PROMPT 1
+PROMPT exit
+
+# Test that runs two programs in a row
+<
+/bin/echo hello
+/bin/echo world
+$ SHELL
+PROMPT hello
+PROMPT world
+PROMPT exit
+
+# Test that runs two programs from a single command line
+<
+/bin/echo hello; /bin/echo world
+$ SHELL
+PROMPT hello
+world
+PROMPT exit
+
+# Test what happens if we run from a relative path
+<
+/bin/chmod 700 ./testscript.sh; ./testscript.sh
+$ SHELL
+PROMPT In the test script
+PROMPT exit
+

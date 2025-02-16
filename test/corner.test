@@ -1,0 +1,23 @@
+# Test that alias works on the same line
+<
+alias foo /bin/echo; foo FOO!
+$ SHELL
+PROMPT FOO!
+PROMPT exit
+
+# Test redirect input and output
+<
+/bin/rm -f redirectout.txt
+/bin/cat < redirectin.txt > redirectout.txt
+/bin/cat redirectout.txt
+$ SHELL
+PROMPT PROMPT PROMPT Contents of the file redirectin
+PROMPT exit
+
+# Test that we run ISHRC if it exists
+<
+/bin/echo In shell
+$ ./ish-with-ishrc.sh SHELL
+Out of ISHRC
+PROMPT In shell
+PROMPT exit

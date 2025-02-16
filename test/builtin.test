@@ -1,0 +1,61 @@
+# Test that CD to a valid directoru works
+< 
+cd /dev
+/bin/pwd
+$ SHELL
+PROMPT PROMPT /dev
+PROMPT exit
+
+# Test that CD with no arguments goes home
+< 
+cd /dev
+/bin/pwd
+cd
+/bin/pwd
+$ SHELL
+PROMPT PROMPT /dev
+PROMPT PROMPT HOME
+PROMPT exit
+
+# Test that cd works in semicolon sequences
+< 
+cd /dev; /bin/pwd; cd; /bin/pwd
+$ SHELL
+PROMPT /dev
+HOME
+PROMPT exit
+
+# Test that alias works on separate lines
+<
+alias foo /bin/echo
+foo FOO!
+$ SHELL
+PROMPT PROMPT FOO!
+PROMPT exit
+
+# Test that printing aliases works
+<
+alias foo /bin/echo; alias
+$ SHELL
+PROMPT foo=/bin/echo
+PROMPT exit
+
+# Test that unaliasing works
+<
+alias foo /bin/echo
+foo FOO! 
+unalias foo
+foo FOO! 
+alias
+$ SHELL
+PROMPT PROMPT FOO!
+PROMPT PROMPT PROMPT PROMPT exit
+>2
+foo: No such file or directory
+
+# Test that quit works
+<
+quit
+/bin/echo should not be reached
+$ SHELL
+PROMPT exit

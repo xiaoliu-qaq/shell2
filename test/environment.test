@@ -1,0 +1,41 @@
+# Test that the environment starts empty
+< 
+/usr/bin/printenv
+$ SHELL
+PROMPT PROMPT exit
+
+# Test that we can set a simple enviornment variable
+<
+setenv FOOBAR foo
+/usr/bin/printenv
+$ SHELL
+PROMPT PROMPT FOOBAR=foo
+PROMPT exit
+
+# Test that setenv can print a simple environment variable
+<
+setenv FOOBAR foo
+setenv
+$ SHELL
+PROMPT PROMPT FOOBAR=foo
+PROMPT exit
+
+# Test that unsetenv works
+<
+setenv FOOBAR foo
+/usr/bin/printenv
+unsetenv FOOBAR
+/usr/bin/printenv
+$ SHELL
+PROMPT PROMPT FOOBAR=foo
+PROMPT PROMPT PROMPT exit
+
+# Test that basic path searching works
+<
+setenv PATH /bin:/usr/bin
+setenv
+echo path search check
+$ SHELL
+PROMPT PROMPT PATH=/bin:/usr/bin
+PROMPT path search check
+PROMPT exit

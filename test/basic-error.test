@@ -1,0 +1,14 @@
+# Test what happens if we run a non-existent program
+<
+/bin/invalid
+$ SHELL
+PROMPT PROMPT exit
+>2 
+/bin/invalid: No such file or directory
+
+# Test what happens if the file in the local directory isn't executable
+<
+/bin/chmod 000 ./testscript.sh; ./testscript.sh; /bin/chmod 700 ./testscript.sh
+$ SHELL
+PROMPT PROMPT exit
+>2 /(No such file or directory)|(Permission denied)/

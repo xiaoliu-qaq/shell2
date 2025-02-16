@@ -1,20 +1,26 @@
 #include "shell.h"
+#include "command.hpp"
+#include "parser.hpp"
 #include <iostream>
 #include <fstream>
 #include <cstdlib>
-
-#ifdef __unix__
+#include <errno.h>
+#include <signal.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <limits.h>
+
+// 如果系统没有定义X_OK
+#ifndef X_OK
+#define X_OK 1
 #endif
 
 namespace ish {
 
 Shell::Shell() : running(true) {
-#ifdef __unix__
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != nullptr) {
         currentDir = cwd;
@@ -26,11 +32,8 @@ Shell::Shell() : running(true) {
     } else {
         hostname = "unknown";
     }
-#else
-    currentDir = ".";
-    hostname = "unknown";
-#endif
     
+    initializeEnvironment();
     readIshrc();
 }
 
@@ -64,7 +67,6 @@ void Shell::run() {
 }
 
 bool Shell::handleRedirection(const redirection& redir) {
-#ifdef __unix__
     int fd;
     mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH; // 644权限
 
@@ -121,10 +123,6 @@ bool Shell::handleRedirection(const redirection& redir) {
         close(fd);
     }
     return true;
-#else
-    std::cerr << "Redirection not supported on this platform\n";
-    return false;
-#endif
 }
 
 bool Shell::executeCommand(const command& cmd) {
@@ -136,7 +134,6 @@ bool Shell::executeCommand(const command& cmd) {
         return executeBuiltin(cmd);
     }
     
-#ifdef __unix__
     pid_t pid = fork();
     
     if (pid == -1) {
@@ -151,31 +148,35 @@ bool Shell::executeCommand(const command& cmd) {
             }
         }
         
-        std::vector<char*> args;
-        args.push_back(const_cast<char*>(cmd.getName().c_str()));
+        std::string fullPath;
+        if (!findExecutable(cmd.getName(), fullPath)) {
+            std::cerr << cmd.getName() << ": Command not found.\n";
+            _exit(127);
+        }
         
+        std::vector<char*> args;
+        args.push_back(const_cast<char*>(fullPath.c_str()));
         for (const auto& arg : cmd.getArguments()) {
             args.push_back(const_cast<char*>(arg.c_str()));
         }
         args.push_back(nullptr);
         
-        execvp(cmd.getName().c_str(), args.data());
+        auto envp = prepareEnvironment();
+        execve(fullPath.c_str(), args.data(), envp.data());
         
-        std::cerr << "Command not found: " << cmd.getName() << std::endl;
+        std::cerr << "Command not found: " << fullPath << std::endl;
         _exit(1);
     }
     
     int status;
     waitpid(pid, &status, 0);
     return WIFEXITED(status) && WEXITSTATUS(status) == 0;
-#else
-    std::cerr << "External commands not supported on this platform\n";
-    return false;
-#endif
 }
 
 bool Shell::isBuiltin(const std::string& cmd) const {
-    return cmd == "cd" || cmd == "quit";
+    return cmd == "cd" || cmd == "quit" || 
+           cmd == "setenv" || cmd == "unsetenv" ||
+           cmd == "printenv";
 }
 
 bool Shell::executeBuiltin(const command& cmd) {
@@ -200,7 +201,91 @@ bool Shell::executeBuiltin(const command& cmd) {
         return false;
     }
     
+    if (cmd.getName() == "setenv") {
+        return handleSetenv(cmd);
+    }
+    if (cmd.getName() == "unsetenv") {
+        return handleUnsetenv(cmd);
+    }
+    if (cmd.getName() == "printenv") {
+        return handlePrintenv();
+    }
+    
     return false;
+}
+
+bool Shell::handleSetenv(const command& cmd) {
+    const auto& args = cmd.getArguments();
+    if (args.empty()) {
+        return handlePrintenv();
+    }
+    if (args.size() == 1) {
+        environment[args[0]] = "";
+    } else {
+        environment[args[0]] = args[1];
+    }
+    return true;
+}
+
+bool Shell::handleUnsetenv(const command& cmd) {
+    const auto& args = cmd.getArguments();
+    if (args.empty()) {
+        std::cerr << "unsetenv: Too few arguments.\n";
+        return false;
+    }
+    environment.erase(args[0]);
+    return true;
+}
+
+bool Shell::handlePrintenv() {
+    for (const auto& [name, value] : environment) {
+        std::cout << name << "=" << value << "\n";
+    }
+    return true;
+}
+
+bool Shell::findExecutable(const std::string& cmd, std::string& fullPath) {
+    if (cmd.find('/') != std::string::npos) {
+        fullPath = cmd;
+        return access(fullPath.c_str(), X_OK) == 0;
+    }
+    
+    auto pathIt = environment.find("PATH");
+    if (pathIt == environment.end()) return false;
+    
+    std::string pathVar = pathIt->second;
+    size_t pos = 0;
+    while ((pos = pathVar.find(':')) != std::string::npos) {
+        std::string dir = pathVar.substr(0, pos);
+        std::string testPath = dir + "/" + cmd;
+        if (access(testPath.c_str(), X_OK) == 0) {
+            fullPath = testPath;
+            return true;
+        }
+        pathVar.erase(0, pos + 1);
+    }
+    if (!pathVar.empty()) {
+        std::string testPath = pathVar + "/" + cmd;
+        if (access(testPath.c_str(), X_OK) == 0) {
+            fullPath = testPath;
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<char*> Shell::prepareEnvironment() {
+    static std::vector<std::string> envStrings;
+    envStrings.clear();
+    std::vector<char*> envp;
+    
+    for (const auto& [name, value] : environment) {
+        std::string envStr = name + "=" + value;
+        envStrings.push_back(envStr);
+        envp.push_back(const_cast<char*>(envStrings.back().c_str()));
+    }
+    envp.push_back(nullptr);
+    return envp;
 }
 
 void Shell::readIshrc() {
@@ -213,6 +298,8 @@ void Shell::readIshrc() {
     
     std::string line;
     while (std::getline(ishrc, line)) {
+        if (line.empty() || line[0] == '#') continue;  // 跳过空行和注释
+        
         std::vector<command> commands;
         auto begin = line.begin();
         auto end = line.end();
@@ -223,6 +310,33 @@ void Shell::readIshrc() {
             }
         }
     }
+}
+
+void Shell::initializeEnvironment() {
+    // 使用getenv代替直接访问environ
+    std::string pathValue = getenv("PATH") ? getenv("PATH") : "/usr/local/bin:/usr/bin:/bin";
+    environment["PATH"] = pathValue;
+    
+    const char* home = getenv("HOME");
+    if (home) {
+        environment["HOME"] = home;
+    }
+    
+    // 复制其他重要的环境变量
+    const char* vars[] = {
+        "TERM", "DISPLAY", "LANG", "LC_ALL", "USER", "SHELL", 
+        "LOGNAME", "PWD", "OLDPWD", nullptr
+    };
+    
+    for (const char** var = vars; *var; ++var) {
+        const char* value = getenv(*var);
+        if (value) {
+            environment[*var] = value;
+        }
+    }
+    
+    // 设置shell
+    environment["SHELL"] = "ish";
 }
 
 }  // namespace ish 

@@ -6,10 +6,9 @@
 
 #pragma once
 
-#include <string> 
+#include <string>
+#include <vector>
 #include <iostream>
-#include <boost/spirit/home/x3.hpp>
-
 
 namespace ish {
 
@@ -22,39 +21,30 @@ struct redirection {
 };
 
 class command {
-    std::string name;
-    std::vector<std::string> arguments;
-    bool isForeground;
-    std::vector<struct redirection> redirections;
-  
 public:
-    command( std::string n ) 
-        :name(n), isForeground(true) {
-        arguments = std::vector<std::string>();
-    }
+    command() = default;
+    command(const std::string& name) : name_(name) {}
 
-    command( ) 
-        :isForeground(true) {
-    }
+    void setName(const std::string& name) { name_ = name; }
+    const std::string& getName() const { return name_; }
 
-    void registerArgument(std::string arg) {
-        arguments.push_back(arg);
+    void addArgument(const std::string& arg) { args_.push_back(arg); }
+    const std::vector<std::string>& getArguments() const { return args_; }
+
+    void registerRedirection(enum redirection_type type, std::string path) {
+        redirections.push_back(redirection(type, path));
     }
-    void registerRedirection(enum redirection_type type, std::string path)
-    {
-        struct redirection r(type, path);
-        redirections.push_back(r);
-    }
-    void setBackground() {
-        isForeground = false;
-    }
-    void setForeground() {
-        isForeground = true;
-    }
+    
+    void setBackground() { isForeground = false; }
+    void setForeground() { isForeground = true; }
     bool getForeground() const { return isForeground; }
-    std::string getName() const { return name; }
-    std::vector<struct redirection> getRedirections() const { return redirections; }
-    std::vector<std::string> getArguments() const { return arguments; }
+    const std::vector<redirection>& getRedirections() const { return redirections; }
+
+private:
+    std::string name_;
+    std::vector<std::string> args_;
+    bool isForeground = true;
+    std::vector<redirection> redirections;
 };
 
 std::ostream& operator<<(std::ostream& out, const ish::command& cmd);

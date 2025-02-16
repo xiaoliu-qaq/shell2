@@ -1,0 +1,32 @@
+# Test if output file isn't writeable
+<
+/bin/echo permission test > /redirectout.txt
+$ SHELL
+PROMPT PROMPT exit
+>2 /\/redirectout.txt: (Permission denied|Read-only file system)/
+
+# Test redirect non-existenent input
+<
+/bin/rm -f does-not-exist.txt
+/bin/cat < does-not-exist.txt
+$ SHELL
+PROMPT PROMPT PROMPT exit
+>2
+does-not-exist.txt: No such file or directory
+
+# Test redirect ambiguous output
+<
+/bin/ls > foo > bar
+$ SHELL
+PROMPT PROMPT exit
+>2
+Ambiguous output redirect.
+
+# Test redirect ambiguous input
+<
+/bin/ls < foo < bar
+$ SHELL
+PROMPT PROMPT exit
+>2
+Ambiguous input redirect.
+
